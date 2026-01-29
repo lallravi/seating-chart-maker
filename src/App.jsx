@@ -1,235 +1,208 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, Users, Award, RotateCw, Download, Menu, X, Layout, Group, Sparkles, Box } from 'lucide-react';
+import { Plus, Trash2, RotateCw, Download, Compass, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
 
 const Controls = () => {
   const { zoomIn, zoomOut, resetTransform } = useControls();
   return (
-    <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-50">
-      <button onClick={() => zoomIn()} className="p-3 bg-white shadow-xl rounded-full border border-slate-200 hover:bg-slate-50 transition-all active:scale-90"><ZoomIn size={18}/></button>
-      <button onClick={() => zoomOut()} className="p-3 bg-white shadow-xl rounded-full border border-slate-200 hover:bg-slate-50 transition-all active:scale-90"><ZoomOut size={18}/></button>
-      <button onClick={() => resetTransform()} className="px-4 py-2 bg-blue-600 text-white shadow-xl rounded-lg font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all">Reset View</button>
+    <div className="absolute bottom-10 right-10 flex flex-col gap-3 z-[100]">
+      <button onClick={() => zoomIn(0.2)} className="p-5 bg-slate-800 shadow-2xl rounded-2xl border border-slate-700 hover:bg-indigo-600 active:scale-90 transition-all text-white"><ZoomIn size={28}/></button>
+      <button onClick={() => zoomOut(0.2)} className="p-5 bg-slate-800 shadow-2xl rounded-2xl border border-slate-700 hover:bg-indigo-600 active:scale-90 transition-all text-white"><ZoomOut size={28}/></button>
+      <button onClick={() => resetTransform()} className="p-5 bg-indigo-600 shadow-2xl rounded-2xl text-white hover:bg-indigo-500 active:scale-90 transition-all border border-indigo-400"><Maximize size={28}/></button>
     </div>
   );
 };
 
 export default function App() {
   const [classes, setClasses] = useState(() => {
-    const saved = localStorage.getItem('lall-ravi-organizer-data');
-    return saved ? JSON.parse(saved) : { "Period 1": [] };
+    const saved = localStorage.getItem('compass-v12-stable');
+    return saved ? JSON.parse(saved) : { "PERIOD 1": [] };
   });
   
   const [currentClassName, setCurrentClassName] = useState(Object.keys(classes)[0]);
   const [newClassName, setNewClassName] = useState("");
   const [activeTab, setActiveTab] = useState('layout');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [name, setName] = useState("");
   const [bulkNames, setBulkNames] = useState("");
   const [showBulk, setShowBulk] = useState(false);
-  const [groupSize, setGroupSize] = useState(4);
   const [pickedStudent, setPickedStudent] = useState(null);
-  const [isSpinning, setIsSpinning] = useState(false);
   const floorRef = useRef(null);
 
   useEffect(() => {
-    localStorage.setItem('lall-ravi-organizer-data', JSON.stringify(classes));
+    localStorage.setItem('compass-v12-stable', JSON.stringify(classes));
   }, [classes]);
 
   const students = classes[currentClassName] || [];
   const updateStudents = (newList) => setClasses(prev => ({ ...prev, [currentClassName]: newList }));
 
+  const handleDragEnd = (id, info) => {
+    const updated = students.map(s => 
+      s.id === id ? { ...s, x: s.x + info.offset.x, y: s.y + info.offset.y } : s
+    );
+    updateStudents(updated);
+  };
+
+  const processRoster = () => {
+    const names = bulkNames.split(/[\n,]+/).map(n => n.trim()).filter(n => n !== "");
+    const columns = 6;
+    const xGap = 480; 
+    const yGap = 320; 
+
+    const newEntries = names.map((n, i) => ({
+      id: Date.now() + i,
+      name: n.toUpperCase(),
+      x: 400 + (i % columns * xGap),
+      y: 500 + (Math.floor(i / columns) * yGap),
+      rotation: 0
+    }));
+
+    updateStudents([...students, ...newEntries]);
+    setBulkNames("");
+    setShowBulk(false);
+  };
+
   const addNewClass = () => {
-    if (newClassName && !classes[newClassName]) {
-      setClasses(prev => ({ ...prev, [newClassName]: [] }));
-      setCurrentClassName(newClassName);
+    if (newClassName.trim()) {
+      const caps = newClassName.toUpperCase();
+      setClasses(prev => ({ ...prev, [caps]: [] }));
+      setCurrentClassName(caps);
       setNewClassName("");
     }
   };
 
-  const deleteClass = (nameToDelete) => {
-    if (Object.keys(classes).length <= 1) return alert("Keep at least one class roster!");
-    if (window.confirm(`Delete ${nameToDelete}?`)) {
-      const remaining = { ...classes };
-      delete remaining[nameToDelete];
-      setClasses(remaining);
-      setCurrentClassName(Object.keys(remaining)[0]);
-    }
-  };
-
-  const createGroups = () => {
-    if (students.length === 0) return;
-    const shuffled = [...students].sort(() => Math.random() - 0.5);
-    const updated = shuffled.map((student, index) => {
-      const groupIndex = Math.floor(index / groupSize);
-      const posInGroup = index % groupSize;
-      const podCol = groupIndex % 4;
-      const podRow = Math.floor(groupIndex / 4);
-      return {
-        ...student,
-        defaultX: 100 + (podCol * 320) + ((posInGroup % 2) * 140),
-        defaultY: 120 + (podRow * 260) + (Math.floor(posInGroup / 2) * 100),
-        rotation: 0,
-        groupColor: groupIndex % 2 === 0 ? 'border-blue-600 bg-blue-50/50' : 'border-slate-400 bg-slate-50/50'
-      };
-    });
-    updateStudents(updated);
-  };
-
-  const pickRandomStudent = () => {
-    if (students.length === 0) return;
-    setIsSpinning(true);
-    let count = 0;
-    const interval = setInterval(() => {
-      setPickedStudent(students[Math.floor(Math.random() * students.length)]);
-      count++;
-      if (count > 25) {
-        clearInterval(interval);
-        setIsSpinning(false);
-      }
-    }, 80);
-  };
-
-  const saveAsImage = () => {
-    if (floorRef.current === null) return;
-    toPng(floorRef.current, { cacheBust: true, backgroundColor: '#ffffff' })
-      .then((dataUrl) => {
-        const link = document.createElement('a');
-        link.download = `Lall-Ravi-Organizer-${currentClassName}.png`;
-        link.href = dataUrl;
-        link.click();
-      });
-  };
-
   return (
-    <div className="h-screen w-screen bg-slate-50 flex flex-col font-sans overflow-hidden text-slate-900">
-      {/* HEADER */}
-      <header className="bg-white text-slate-900 py-4 px-6 flex justify-between items-center z-50 border-b border-slate-200 shadow-sm">
+    <div className="fixed inset-0 bg-[#0f172a] flex flex-col font-sans overflow-hidden text-slate-100">
+      <header className="h-20 bg-[#1e293b] border-b border-slate-800 px-10 flex justify-between items-center z-[70] shrink-0 shadow-xl">
         <div className="flex items-center gap-4">
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="lg:hidden p-2 hover:bg-slate-100 rounded-lg"><Menu size={24}/></button>
-          <div className="flex flex-col">
-            <h1 className="text-lg font-black tracking-tighter flex items-center gap-2">
-              <Box className="text-blue-600" size={20}/>
-              LALL RAVI'S <span className="text-blue-600 uppercase">Classroom Seat Organizer</span>
-            </h1>
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-[-2px]">Built-in Name Picker & Group Maker</p>
-          </div>
+          <Compass className="text-indigo-500" size={32} />
+          <h1 className="text-xl font-black tracking-tighter uppercase">Classroom Compass <span className="text-indigo-500 text-sm">PRO</span></h1>
         </div>
-        <button onClick={saveAsImage} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all active:scale-95">
-          <Download size={16}/> Export Layout
+        <button onClick={() => toPng(floorRef.current).then(d => { const a = document.createElement('a'); a.download = 'map.png'; a.href = d; a.click(); })} 
+          className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg transition-all">
+          Export Map
         </button>
       </header>
 
-      <div className="flex flex-1 relative overflow-hidden">
-        {/* SIDEBAR */}
-        <aside className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-transform duration-300 absolute lg:relative w-full lg:w-80 h-full bg-white p-6 border-r border-slate-200 shadow-xl z-40 flex flex-col`}>
-          
-          <div className="mb-8 p-5 bg-slate-50 rounded-2xl border border-slate-200">
-            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2 text-blue-600">Active Roster</h2>
-            <select value={currentClassName} onChange={(e) => setCurrentClassName(e.target.value)} className="w-full bg-white p-3 rounded-xl text-sm font-bold border border-slate-200 shadow-sm outline-none mb-4 cursor-pointer">
+      <div className="flex flex-1 overflow-hidden">
+        <aside className="w-96 bg-[#1e293b] border-r border-slate-800 p-8 flex flex-col z-[60] shrink-0 shadow-2xl overflow-y-auto">
+          <div className="mb-8">
+            <label className="text-[10px] font-black text-slate-500 uppercase mb-2 block tracking-widest">Active Class</label>
+            <select value={currentClassName} onChange={(e) => setCurrentClassName(e.target.value)} className="w-full p-4 bg-[#0f172a] border border-slate-700 rounded-xl font-bold text-white outline-none">
               {Object.keys(classes).map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-            <div className="flex gap-2">
-              <input value={newClassName} onChange={(e) => setNewClassName(e.target.value)} placeholder="Period Name..." className="flex-1 bg-white p-2 rounded-lg text-xs border border-slate-200 outline-none" />
-              <button onClick={addNewClass} className="p-2 bg-slate-900 text-white rounded-lg hover:bg-blue-600 transition-colors"><Plus size={18}/></button>
-              <button onClick={() => deleteClass(currentClassName)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
+            <div className="flex gap-2 mt-4">
+                <input value={newClassName} onChange={(e) => setNewClassName(e.target.value)} placeholder="New Class..." className="flex-1 p-3 bg-[#0f172a] border border-slate-700 rounded-lg text-sm" />
+                <button onClick={addNewClass} className="p-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all"><Plus size={20}/></button>
             </div>
           </div>
 
-          <div className="flex bg-slate-100 p-1 rounded-2xl mb-8">
-            <button onClick={() => setActiveTab('layout')} className={`flex-1 flex flex-col items-center py-3 rounded-xl transition-all ${activeTab === 'layout' ? 'bg-white shadow-md text-blue-600' : 'text-slate-400'}`}><Layout size={20} /><span className="text-[9px] font-black uppercase mt-1">Setup</span></button>
-            <button onClick={() => setActiveTab('groups')} className={`flex-1 flex flex-col items-center py-3 rounded-xl transition-all ${activeTab === 'groups' ? 'bg-white shadow-md text-emerald-600' : 'text-slate-400'}`}><Group size={20} /><span className="text-[9px] font-black uppercase mt-1">Groups</span></button>
-            <button onClick={() => setActiveTab('randomizer')} className={`flex-1 flex flex-col items-center py-3 rounded-xl transition-all ${activeTab === 'randomizer' ? 'bg-white shadow-md text-purple-600' : 'text-slate-400'}`}><Sparkles size={20} /><span className="text-[9px] font-black uppercase mt-1">Picker</span></button>
-          </div>
+          <nav className="flex bg-[#0f172a] p-1 rounded-xl mb-8 border border-slate-800">
+            {['layout', 'randomizer'].map((t) => (
+              <button key={t} onClick={() => setActiveTab(t)} className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === t ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500'}`}>{t}</button>
+            ))}
+          </nav>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="space-y-6">
             {activeTab === 'layout' && (
-              <div className="space-y-4">
-                <div className="flex gap-1 p-1 bg-slate-100 rounded-lg">
-                  <button onClick={() => setShowBulk(false)} className={`flex-1 py-2 text-[9px] font-black uppercase rounded ${!showBulk ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}>Manual</button>
-                  <button onClick={() => setShowBulk(true)} className={`flex-1 py-2 text-[9px] font-black uppercase rounded ${showBulk ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}>Bulk</button>
+              <div className="space-y-6">
+                <div className="flex gap-2 p-1 bg-[#0f172a] rounded-lg border border-slate-800">
+                  <button onClick={() => setShowBulk(false)} className={`flex-1 py-2 text-[10px] font-black rounded uppercase ${!showBulk ? 'bg-slate-800 text-indigo-400' : 'text-slate-600'}`}>Single</button>
+                  <button onClick={() => setShowBulk(true)} className={`flex-1 py-2 text-[10px] font-black rounded uppercase ${showBulk ? 'bg-slate-800 text-indigo-400' : 'text-slate-600'}`}>Bulk</button>
                 </div>
-                {!showBulk ? (
-                  <form onSubmit={(e) => { e.preventDefault(); if(name) { updateStudents([...students, { id: Date.now(), name: name.toUpperCase(), defaultX: 100, defaultY: 100, rotation: 0 }]); setName(""); } }} className="flex gap-2">
-                    <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Add Name" className="flex-1 p-3 border rounded-xl text-sm font-medium" />
-                    <button type="submit" className="bg-blue-600 text-white p-3 rounded-xl"><Plus/></button>
-                  </form>
+
+                {showBulk ? (
+                  <div className="space-y-4">
+                    <textarea value={bulkNames} onChange={(e) => setBulkNames(e.target.value)} placeholder="Paste list..." className="w-full h-80 p-5 bg-[#0f172a] border border-slate-700 rounded-2xl font-medium text-sm text-white outline-none focus:border-indigo-500" />
+                    <button onClick={processRoster} className="w-full py-4 bg-indigo-600 text-white rounded-xl font-black uppercase tracking-widest hover:bg-indigo-500 transition-all">Process Roster</button>
+                  </div>
                 ) : (
-                  <textarea value={bulkNames} onChange={(e) => setBulkNames(e.target.value)} onBlur={() => {
-                    const names = bulkNames.split(/[\n,]+/).map(n => n.trim()).filter(n => n !== "");
-                    updateStudents([...students, ...names.map((n, i) => ({ id: Date.now()+i, name: n.toUpperCase(), defaultX: 100, defaultY: 100 }))]);
-                    setBulkNames(""); setShowBulk(false);
-                  }} placeholder="Type names & click away..." className="w-full h-32 p-3 border rounded-xl text-sm bg-slate-50 outline-blue-500" />
+                  <div className="space-y-4">
+                    <input value={name} onChange={(e) => setName(e.target.value)} placeholder="STUDENT NAME" className="w-full p-5 bg-[#0f172a] border border-slate-700 rounded-xl font-black text-xl text-white outline-none" />
+                    <button onClick={() => { if(name) { updateStudents([...students, { id: Date.now(), name: name.toUpperCase(), x: 600, y: 600, rotation: 0 }]); setName(""); } }} className="w-full py-4 bg-indigo-600 text-white rounded-xl font-black uppercase tracking-widest">Add Student</button>
+                  </div>
                 )}
               </div>
             )}
 
-            {activeTab === 'groups' && (
-              <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
-                <label className="text-[10px] font-black text-emerald-800 uppercase block mb-3">Pod Size</label>
-                <input type="number" value={groupSize} onChange={(e) => setGroupSize(parseInt(e.target.value))} className="w-12 p-2 border-2 border-emerald-200 rounded-lg text-lg text-center font-black mb-4" />
-                <button onClick={createGroups} className="w-full py-4 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest">Shuffle Groups</button>
-              </div>
-            )}
-
             {activeTab === 'randomizer' && (
-              <div className="text-center p-8 bg-purple-50 rounded-3xl border border-purple-100 space-y-6">
-                <button onClick={pickRandomStudent} disabled={isSpinning || students.length === 0} className="w-full py-5 bg-purple-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-purple-700 active:scale-95 transition-all">Spin The Picker</button>
-              </div>
+              <button onClick={() => {
+                let count = 0;
+                const interval = setInterval(() => {
+                  setPickedStudent(students[Math.floor(Math.random() * students.length)]);
+                  count++;
+                  if (count > 20) clearInterval(interval);
+                }, 80);
+              }} className="w-full py-20 bg-gradient-to-br from-indigo-600 to-indigo-900 text-white rounded-[3rem] font-black uppercase tracking-widest shadow-2xl active:scale-95 transition-all">Spin Randomizer</button>
             )}
 
-            <div className="mt-10 border-t pt-4">
-              <h3 className="text-[10px] font-black text-slate-300 uppercase mb-4 tracking-widest">Student List ({students.length})</h3>
-              {students.map(s => (
-                <div key={s.id} className="flex justify-between items-center p-3 mb-2 bg-white border border-slate-100 rounded-xl text-xs font-bold shadow-sm group">
-                  {s.name} <button onClick={() => updateStudents(students.filter(x => x.id !== s.id))} className="text-slate-200 group-hover:text-red-500"><Trash2 size={16}/></button>
-                </div>
-              ))}
+            <div className="mt-10 border-t border-slate-800 pt-6">
+                <h3 className="text-[10px] font-black text-slate-500 uppercase mb-4 tracking-widest">Roster ({students.length})</h3>
+                {students.map(s => (
+                  <div key={s.id} className="flex justify-between items-center p-3 mb-2 bg-[#0f172a]/50 border border-slate-800 rounded-lg text-xs font-bold">
+                    <span className="text-slate-400">{s.name}</span>
+                    <button onClick={() => updateStudents(students.filter(x => x.id !== s.id))} className="text-slate-600 hover:text-red-500"><Trash2 size={16}/></button>
+                  </div>
+                ))}
             </div>
-          </div>
-          
-          <div className="mt-auto pt-4 border-t border-slate-100 text-center opacity-40">
-             <p className="text-[9px] font-black uppercase tracking-widest">Created by Lall Ravi</p>
           </div>
         </aside>
 
-        {/* MAIN DISPLAY */}
-        <main className="flex-1 bg-slate-100 relative overflow-hidden">
-          {activeTab === 'randomizer' ? (
-            <div className="w-full h-full flex items-center justify-center bg-slate-900 relative">
-               <AnimatePresence mode='wait'>
-                 {pickedStudent && (
-                   <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 1.5, opacity: 0 }} className="bg-white p-20 rounded-[4rem] border-[12px] border-purple-500 shadow-2xl text-center z-10">
-                     <p className="text-purple-500 font-black mb-4 uppercase tracking-[0.5em] text-xs">Chosen Student</p>
-                     <h2 className="text-8xl font-black uppercase tracking-tighter text-slate-900">{pickedStudent.name}</h2>
-                   </motion.div>
-                 )}
-               </AnimatePresence>
-            </div>
-          ) : (
-            <TransformWrapper initialScale={0.6} minScale={0.1} maxScale={2} centerOnInit={true} panning={{ excluded: ["motion-div", "button"] }}>
-              <Controls />
-              <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
-                <div ref={floorRef} className="bg-white rounded-[2rem] shadow-2xl relative border-4 border-slate-200" style={{ width: '1400px', height: '1000px' }}>
-                  <div className="w-full h-16 bg-slate-900 text-white flex items-center justify-center font-black uppercase tracking-[0.6em] text-xs">
-                    FRONT - {currentClassName} - LALL RAVI ORGANIZER
-                  </div>
-                  <div className="relative w-full h-full bg-[radial-gradient(#cbd5e1_1.5px,transparent_1.5px)] [background-size:40px_40px]">
-                    {students.map((student) => (
-                      <motion.div key={student.id} drag dragMomentum={false} animate={{ x: student.defaultX, y: student.defaultY, rotate: student.rotation || 0 }} className="absolute cursor-move motion-div">
-                        <div className="w-8 h-3 bg-slate-400 rounded-t-lg mx-auto mb-[-2px] border-x border-t border-slate-500 opacity-20"></div>
-                        <div className={`w-28 h-16 border-2 rounded-xl shadow-lg flex items-center justify-center p-3 relative transition-all ${student.groupColor || 'bg-white border-slate-200 hover:border-blue-400'}`}>
-                          <span className="text-[10px] font-black text-center select-none uppercase tracking-tighter">{student.name}</span>
-                          <button onClick={(e) => { e.stopPropagation(); updateStudents(students.map(s => s.id === student.id ? {...s, rotation: (s.rotation||0)+90} : s)) }} className="absolute -top-2 -right-2 p-1.5 bg-slate-900 text-white rounded-full shadow-lg hover:bg-blue-600 transition-colors"><RotateCw size={12}/></button>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
-              </TransformComponent>
-            </TransformWrapper>
-          )}
+        <main className="flex-1 relative bg-[#0f172a] overflow-hidden">
+          <AnimatePresence mode="wait">
+            {activeTab === 'randomizer' ? (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex items-center justify-center bg-slate-950">
+                {pickedStudent && (
+                  <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }} className="bg-[#1e293b] p-24 rounded-[5rem] text-center shadow-[0_0_100px_rgba(99,102,241,0.3)] border-8 border-indigo-500">
+                    <h2 className="text-[100px] font-black uppercase text-white leading-none tracking-tighter">{pickedStudent.name}</h2>
+                  </motion.div>
+                )}
+              </motion.div>
+            ) : (
+              <div className="w-full h-full relative">
+                <TransformWrapper 
+                  centerOnInit={true} 
+                  minScale={0.05} 
+                  initialScale={0.2} 
+                  limitToBounds={false}
+                  panning={{ excluded: ["student-desk"] }}
+                >
+                  <Controls />
+                  <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
+                    <div ref={floorRef} className="relative bg-[#0b1121]" style={{ width: '8000px', height: '6000px' }}>
+                      <div className="absolute inset-0 bg-[radial-gradient(#1e293b_2px,transparent_2px)] [background-size:120px_120px]"></div>
+                      
+                      <div className="absolute top-0 w-full h-40 bg-slate-950 border-b-8 border-indigo-600 flex items-center justify-center font-black uppercase tracking-[3em] text-xl text-indigo-400">
+                        FRONT OF CLASSROOM
+                      </div>
+
+                      {students.map((student) => (
+                        <motion.div 
+                          key={student.id} 
+                          drag 
+                          dragMomentum={false}
+                          onDragEnd={(e, info) => handleDragEnd(student.id, info)}
+                          animate={{ x: student.x, y: student.y, rotate: student.rotation }}
+                          className="absolute student-desk cursor-grab active:cursor-grabbing z-20"
+                        >
+                          <div className="w-[380px] h-[240px] bg-slate-800 border-4 border-slate-600 rounded-[3.5rem] shadow-2xl flex flex-col items-center justify-center p-8 group hover:border-indigo-500 hover:bg-slate-750 transition-all relative">
+                            <span className="text-4xl font-black uppercase text-center select-none text-white tracking-tighter drop-shadow-lg">
+                              {student.name}
+                            </span>
+                            <button onClick={(e) => { e.stopPropagation(); updateStudents(students.map(s => s.id === student.id ? {...s, rotation: (s.rotation||0)+90} : s)) }} className="absolute -top-6 -right-6 p-5 bg-indigo-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-xl hover:scale-110 active:scale-90">
+                              <RotateCw size={24}/>
+                            </button>
+                            <div className="absolute -bottom-8 w-28 h-12 bg-slate-700 rounded-t-3xl -z-10 border-t-4 border-slate-600 group-hover:bg-indigo-900 group-hover:border-indigo-800 transition-colors"></div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </TransformComponent>
+                </TransformWrapper>
+              </div>
+            )}
+          </AnimatePresence>
         </main>
       </div>
     </div>
