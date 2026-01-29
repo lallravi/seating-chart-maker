@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, RotateCw, Compass, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import { Plus, Trash2, RotateCw, Compass, ZoomIn, ZoomOut, Maximize, Target } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
 
@@ -14,7 +14,6 @@ const Controls = () => {
   );
 };
 
-// INDIVIDUAL DESK COMPONENT: This isolates the logic so one desk doesn't lag the others
 const Desk = ({ student, updatePosition, rotate, remove, scale }) => {
   const [pos, setPos] = useState({ x: student.x, y: student.y });
   const isDragging = useRef(false);
@@ -28,7 +27,6 @@ const Desk = ({ student, updatePosition, rotate, remove, scale }) => {
 
     const onMouseMove = (moveEvent) => {
       if (!isDragging.current) return;
-      // Multiplying by (1/scale) ensures the desk follows the mouse perfectly regardless of zoom
       const dx = (moveEvent.clientX - startX) * (1 / scale);
       const dy = (moveEvent.clientY - startY) * (1 / scale);
       setPos({ x: initialX + dx, y: initialY + dy });
@@ -38,7 +36,6 @@ const Desk = ({ student, updatePosition, rotate, remove, scale }) => {
       isDragging.current = false;
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
-      // Only sync back to the main app state when the user lets go
       updatePosition(student.id, pos.x, pos.y);
     };
 
@@ -56,17 +53,28 @@ const Desk = ({ student, updatePosition, rotate, remove, scale }) => {
       }}
       className="cursor-grab active:cursor-grabbing z-20"
     >
-      <div className="w-[1400px] h-[900px] bg-white border-[40px] border-indigo-600 rounded-[15rem] shadow-[0_120px_200px_-50px_rgba(0,0,0,0.5)] flex items-center justify-center p-24 relative group">
-        <span className="text-[200px] font-black uppercase text-center select-none text-slate-900 tracking-tighter">
+      {/* MASSIVE WOODEN-STYLE DESK */}
+      <div className="w-[1600px] h-[1000px] bg-[#fdfdfd] border-[45px] border-slate-800 rounded-[4rem] shadow-[0_150px_250px_-50px_rgba(0,0,0,0.4)] flex flex-col items-center justify-center relative overflow-visible">
+        
+        {/* Desk Top Texture / Front Edge */}
+        <div className="absolute top-0 left-0 right-0 h-10 bg-slate-200 rounded-t-full"></div>
+        
+        <span className="text-[220px] font-black uppercase text-center select-none text-slate-900 tracking-tighter leading-none">
           {student.name}
         </span>
-        <button onMouseDown={(e) => e.stopPropagation()} onClick={() => rotate(student.id)} className="absolute -top-24 -right-24 p-20 bg-indigo-600 text-white rounded-full shadow-2xl">
-          <RotateCw size={120}/>
+
+        {/* ROTATE BUTTON */}
+        <button onMouseDown={(e) => e.stopPropagation()} onClick={() => rotate(student.id)} className="absolute -top-32 -right-32 p-24 bg-indigo-600 text-white rounded-full shadow-2xl hover:scale-110 transition-transform active:rotate-180">
+          <RotateCw size={140}/>
         </button>
-        <button onMouseDown={(e) => e.stopPropagation()} onClick={() => remove(student.id)} className="absolute -top-24 -left-24 p-10 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Trash2 size={80}/>
+
+        {/* DELETE BUTTON */}
+        <button onMouseDown={(e) => e.stopPropagation()} onClick={() => remove(student.id)} className="absolute -bottom-32 -right-32 p-12 text-red-500 hover:scale-110 transition-transform">
+          <Trash2 size={100}/>
         </button>
-        <div className="absolute -bottom-48 w-[400px] h-48 bg-slate-200 rounded-t-[8rem] -z-10 border-t-[30px] border-slate-300"></div>
+
+        {/* CHAIR VISUAL - INDICATES FRONT */}
+        <div className="absolute -bottom-[220px] w-[500px] h-[200px] bg-slate-700 rounded-b-[10rem] border-x-[30px] border-b-[30px] border-slate-900 shadow-2xl"></div>
       </div>
     </div>
   );
@@ -74,18 +82,20 @@ const Desk = ({ student, updatePosition, rotate, remove, scale }) => {
 
 export default function App() {
   const [classes, setClasses] = useState(() => {
-    const saved = localStorage.getItem('compass-v30-ultra');
+    const saved = localStorage.getItem('compass-v35-final');
     return saved ? JSON.parse(saved) : { "PERIOD 1": [] };
   });
   
   const [currentClassName, setCurrentClassName] = useState(Object.keys(classes)[0] || "PERIOD 1");
   const [newClassName, setNewClassName] = useState("");
   const [bulkNames, setBulkNames] = useState("");
-  const [currentScale, setCurrentScale] = useState(0.08);
+  const [activeTab, setActiveTab] = useState('roster');
+  const [pickedStudent, setPickedStudent] = useState(null);
+  const [currentScale, setCurrentScale] = useState(0.06);
   const floorRef = useRef(null);
 
   useEffect(() => {
-    localStorage.setItem('compass-v30-ultra', JSON.stringify(classes));
+    localStorage.setItem('compass-v35-final', JSON.stringify(classes));
   }, [classes]);
 
   const students = classes[currentClassName] || [];
@@ -114,14 +124,14 @@ export default function App() {
   const processRoster = () => {
     const names = bulkNames.split(/[\n,]+/).map(n => n.trim()).filter(n => n !== "");
     const columns = 5;
-    const xGap = 1800; 
-    const yGap = 1200; 
+    const xGap = 2000; 
+    const yGap = 1500; 
 
     const newEntries = names.map((n, i) => ({
       id: Date.now() + i,
       name: n.toUpperCase(),
-      x: 2000 + (i % columns * xGap),
-      y: 2500 + (Math.floor(i / columns) * yGap),
+      x: 3000 + (i % columns * xGap),
+      y: 3500 + (Math.floor(i / columns) * yGap),
       rotation: 0
     }));
 
@@ -129,13 +139,14 @@ export default function App() {
     setBulkNames("");
   };
 
-  const addNewClass = () => {
-    if (newClassName.trim()) {
-      const name = newClassName.toUpperCase();
-      setClasses(prev => ({ ...prev, [name]: [] }));
-      setCurrentClassName(name);
-      setNewClassName("");
-    }
+  const spinRandomizer = () => {
+    if (students.length === 0) return;
+    let count = 0;
+    const interval = setInterval(() => {
+      setPickedStudent(students[Math.floor(Math.random() * students.length)]);
+      count++;
+      if (count > 30) clearInterval(interval);
+    }, 80);
   };
 
   return (
@@ -149,40 +160,61 @@ export default function App() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <aside className="w-[550px] bg-white border-r-8 border-slate-50 p-12 flex flex-col z-[60] shrink-0 shadow-2xl overflow-y-auto">
-          <div className="mb-12">
-            <label className="text-sm font-black text-slate-300 uppercase mb-4 block tracking-[0.2em]">Class Periods</label>
+        <aside className="w-[580px] bg-white border-r-8 border-slate-50 p-12 flex flex-col z-[60] shrink-0 shadow-2xl overflow-y-auto">
+          
+          <div className="mb-10">
+            <nav className="flex bg-slate-100 p-2 rounded-3xl mb-10">
+              <button onClick={() => setActiveTab('roster')} className={`flex-1 py-6 rounded-2xl text-sm font-black uppercase transition-all ${activeTab === 'roster' ? 'bg-white text-indigo-600 shadow-xl' : 'text-slate-400'}`}>Roster</button>
+              <button onClick={() => setActiveTab('randomizer')} className={`flex-1 py-6 rounded-2xl text-sm font-black uppercase transition-all ${activeTab === 'randomizer' ? 'bg-white text-indigo-600 shadow-xl' : 'text-slate-400'}`}>Randomizer</button>
+            </nav>
+
+            <label className="text-xs font-black text-slate-300 uppercase mb-4 block tracking-[0.2em]">Add Class Period</label>
             <div className="flex gap-4 mb-4">
               <input value={newClassName} onChange={(e) => setNewClassName(e.target.value)} placeholder="PERIOD 2..." className="flex-1 p-6 rounded-3xl bg-slate-50 border-4 border-slate-100 font-black text-xl outline-none focus:border-indigo-600" />
-              <button onClick={addNewClass} className="bg-indigo-600 text-white p-6 rounded-3xl shadow-xl hover:bg-indigo-700 transition-all"><Plus size={32}/></button>
+              <button onClick={() => { if(newClassName) { setClasses(p => ({...p, [newClassName.toUpperCase()]: []})); setCurrentClassName(newClassName.toUpperCase()); setNewClassName(""); }}} className="bg-indigo-600 text-white p-6 rounded-3xl shadow-xl hover:bg-indigo-700"><Plus size={32}/></button>
             </div>
             <select value={currentClassName} onChange={(e) => setCurrentClassName(e.target.value)} className="w-full p-6 bg-slate-900 text-white rounded-3xl font-black text-2xl outline-none cursor-pointer">
               {Object.keys(classes).map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
 
-          <div className="space-y-8">
-            <textarea value={bulkNames} onChange={(e) => setBulkNames(e.target.value)} placeholder="PASTE NAMES..." className="w-full h-[600px] p-10 bg-slate-50 border-4 border-slate-100 rounded-[4rem] font-bold text-2xl outline-none focus:border-indigo-600" />
-            <button onClick={processRoster} className="w-full py-8 bg-indigo-600 text-white rounded-[3rem] font-black text-2xl uppercase tracking-[0.2em] shadow-2xl active:scale-95 transition-all">Process Roster</button>
-          </div>
+          {activeTab === 'roster' ? (
+            <div className="space-y-8">
+              <textarea value={bulkNames} onChange={(e) => setBulkNames(e.target.value)} placeholder="PASTE NAMES..." className="w-full h-[500px] p-10 bg-slate-50 border-4 border-slate-100 rounded-[4rem] font-bold text-2xl outline-none focus:border-indigo-600" />
+              <button onClick={processRoster} className="w-full py-8 bg-indigo-600 text-white rounded-[3rem] font-black text-2xl uppercase tracking-[0.2em] shadow-2xl active:scale-95 transition-all">Spread Students</button>
+            </div>
+          ) : (
+            <div className="space-y-10">
+              <button onClick={spinRandomizer} className="w-full py-32 bg-indigo-600 text-white rounded-[5rem] font-black uppercase tracking-[0.4em] shadow-2xl active:scale-95 transition-all text-2xl flex flex-col items-center gap-4">
+                <Target size={64}/>
+                Spin Wheel
+              </button>
+              {pickedStudent && (
+                <div className="p-16 bg-white border-[20px] border-indigo-600 rounded-[5rem] text-center shadow-2xl animate-pulse">
+                  <p className="text-indigo-400 font-black text-xl mb-4 tracking-widest uppercase italic">Selected:</p>
+                  <h2 className="text-8xl font-black text-slate-900 uppercase tracking-tighter">{pickedStudent.name}</h2>
+                </div>
+              )}
+            </div>
+          )}
         </aside>
 
         <main className="flex-1 relative bg-slate-100 overflow-hidden">
           <TransformWrapper 
             centerOnInit={true} 
-            minScale={0.01} 
-            initialScale={0.08} 
+            minScale={0.005} 
+            initialScale={0.06} 
             limitToBounds={false}
             panning={{ excluded: ["cursor-grab"] }}
             onZoom={(ref) => setCurrentScale(ref.state.scale)}
           >
             <Controls />
             <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
-              <div ref={floorRef} className="relative bg-white" style={{ width: '30000px', height: '20000px' }}>
-                <div className="absolute top-0 w-full h-[1500px] bg-slate-900 flex items-center justify-center z-10 shadow-2xl">
-                   <h2 className="text-white text-[800px] font-black uppercase tracking-[30rem] translate-x-[15rem]">Whiteboard</h2>
+              <div ref={floorRef} className="relative bg-white" style={{ width: '40000px', height: '30000px' }}>
+                <div className="absolute top-0 w-full h-[2000px] bg-slate-900 flex items-center justify-center z-10 shadow-2xl">
+                   <h2 className="text-white text-[1000px] font-black uppercase tracking-[40rem] translate-x-[20rem]">Whiteboard</h2>
                 </div>
-                <div className="relative w-full h-full bg-[radial-gradient(#e2e8f0_20px,transparent_20px)] [background-size:1000px_1000px]">
+                <div className="relative w-full h-full bg-[radial-gradient(#e2e8f0_30px,transparent_30px)] [background-size:2000px_2000px]">
                   {students.map((student) => (
                     <Desk 
                       key={student.id} 
