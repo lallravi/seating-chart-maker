@@ -19,7 +19,12 @@ const Desk = ({ student, isTeacher, updatePosition, rotate, remove, scale }) => 
   const [pos, setPos] = useState({ x: student.x, y: student.y });
   const isDragging = useRef(false);
 
-  useEffect(() => { setPos({ x: student.x, y: student.y }); }, [student.x, student.y]);
+  // Sync state if student prop changes externally
+  useEffect(() => { 
+    if (!isDragging.current) {
+      setPos({ x: student.x, y: student.y }); 
+    }
+  }, [student.x, student.y]);
 
   const onMouseDown = (e) => {
     isDragging.current = true;
@@ -35,26 +40,48 @@ const Desk = ({ student, isTeacher, updatePosition, rotate, remove, scale }) => 
       setPos({ x: initialX + dx, y: initialY + dy });
     };
 
-    const onMouseUp = () => {
+    const onMouseUp = (moveEvent) => {
+      if (!isDragging.current) return;
       isDragging.current = false;
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
-      updatePosition(student.id, pos.x, pos.y, isTeacher);
+      
+      const finalX = initialX + (moveEvent.clientX - startX) * (1 / scale);
+      const finalY = initialY + (moveEvent.clientY - startY) * (1 / scale);
+      updatePosition(student.id, finalX, finalY, isTeacher);
     };
+
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   };
 
   return (
-    <div onMouseDown={onMouseDown} style={{ transform: `translate(${pos.x}px, ${pos.y}px) rotate(${student.rotation || 0}deg)`, position: 'absolute', zIndex: isTeacher ? 50 : 20 }} className="cursor-grab active:cursor-grabbing">
-      <div className={`w-[400px] h-[220px] rounded-[2rem] shadow-2xl flex items-center justify-center relative border-[10px] ${isTeacher ? 'bg-indigo-50 border-indigo-600' : 'bg-white border-slate-900'}`}>
-        <span className={`text-5xl font-black uppercase text-center px-6 leading-tight ${isTeacher ? 'text-indigo-900' : 'text-slate-900'}`}>
-          {student.name}
-        </span>
-        <div className="absolute -top-10 -right-10 flex gap-3 no-print">
-            <button onMouseDown={(e) => e.stopPropagation()} onClick={() => rotate(student.id, isTeacher)} className="p-4 bg-indigo-600 text-white rounded-full shadow-lg"><RotateCw size={30}/></button>
-            {!isTeacher && <button onMouseDown={(e) => e.stopPropagation()} onClick={() => remove(student.id)} className="p-4 bg-red-600 text-white rounded-full shadow-lg"><Trash2 size={30}/></button>}
+    <div 
+      onMouseDown={onMouseDown} 
+      style={{ 
+        transform: `translate(${pos.x}px, ${pos.y}px) rotate(${student.rotation || 0}deg)`, 
+        position: 'absolute', 
+        zIndex: isDragging.current ? 1000 : (isTeacher ? 50 : 20) 
+      }} 
+      className="cursor-grab active:cursor-grabbing"
+    >
+      <div className="relative group">
+        {/* Desk Body */}
+        <div className={`w-[400px] h-[220px] rounded-2xl shadow-2xl flex items-center justify-center relative border-[12px] ${isTeacher ? 'bg-indigo-50 border-indigo-600' : 'bg-white border-slate-900'}`}>
+          <span className={`text-5xl font-black uppercase text-center px-6 leading-tight select-none ${isTeacher ? 'text-indigo-900' : 'text-slate-900'}`}>
+            {student.name}
+          </span>
+          
+          {/* Desk Ledge Decoration */}
+          <div className={`absolute top-4 left-1/2 -translate-x-1/2 w-32 h-2 rounded-full opacity-20 ${isTeacher ? 'bg-indigo-900' : 'bg-slate-900'}`}></div>
+          
+          <div className="absolute -top-10 -right-10 flex gap-3 no-print">
+              <button onMouseDown={(e) => e.stopPropagation()} onClick={() => rotate(student.id, isTeacher)} className="p-4 bg-indigo-600 text-white rounded-full shadow-lg"><RotateCw size={28}/></button>
+              {!isTeacher && <button onMouseDown={(e) => e.stopPropagation()} onClick={() => remove(student.id)} className="p-4 bg-red-600 text-white rounded-full shadow-lg"><Trash2 size={28}/></button>}
+          </div>
         </div>
+        {/* Chair Silhouette */}
+        <div className={`absolute -bottom-16 left-1/2 -translate-x-1/2 w-48 h-16 rounded-b-3xl border-x-8 border-b-8 opacity-40 ${isTeacher ? 'bg-indigo-200 border-indigo-600' : 'bg-slate-200 border-slate-900'}`}></div>
       </div>
     </div>
   );
@@ -62,8 +89,8 @@ const Desk = ({ student, isTeacher, updatePosition, rotate, remove, scale }) => 
 
 export default function App() {
   const [classes, setClasses] = useState(() => {
-    const saved = localStorage.getItem('compass-final-v1');
-    return saved ? JSON.parse(saved) : { "PERIOD 1": { students: [], teacherDesk: { id: 't1', name: 'TEACHER', x: 1800, y: 200, rotation: 0 } } };
+    const saved = localStorage.getItem('compass-lallravi-v1');
+    return saved ? JSON.parse(saved) : { "PERIOD 1": { students: [], teacherDesk: { id: 't1', name: 'TEACHER', x: 1800, y: 150, rotation: 0 } } };
   });
   
   const [currentClassName, setCurrentClassName] = useState(Object.keys(classes)[0]);
@@ -75,13 +102,13 @@ export default function App() {
   const [currentScale, setCurrentScale] = useState(0.4);
   const floorRef = useRef(null);
 
-  useEffect(() => { localStorage.setItem('compass-final-v1', JSON.stringify(classes)); }, [classes]);
+  useEffect(() => { localStorage.setItem('compass-lallravi-v1', JSON.stringify(classes)); }, [classes]);
   const currentData = classes[currentClassName] || { students: [], teacherDesk: null };
 
   const addClass = () => {
     if (!newClassName) return;
     const name = newClassName.toUpperCase();
-    setClasses(prev => ({ ...prev, [name]: { students: [], teacherDesk: { id: Date.now().toString(), name: 'TEACHER', x: 1800, y: 200, rotation: 0 } } }));
+    setClasses(prev => ({ ...prev, [name]: { students: [], teacherDesk: { id: Date.now().toString(), name: 'TEACHER', x: 1800, y: 150, rotation: 0 } } }));
     setCurrentClassName(name);
     setNewClassName("");
   };
@@ -103,7 +130,7 @@ export default function App() {
       id: Date.now() + i,
       name: n.toUpperCase(),
       x: 500 + (i % 5 * 600),
-      y: 600 + (Math.floor(i / 5) * 400),
+      y: 600 + (Math.floor(i / 5) * 450),
       rotation: 0
     }));
     setClasses(prev => ({ ...prev, [currentClassName]: { ...prev[currentClassName], students: [...prev[currentClassName].students, ...newEntries] } }));
@@ -115,7 +142,7 @@ export default function App() {
     const dataUrl = await toPng(element, { backgroundColor: '#ffffff' });
     const pdf = new jsPDF('l', 'px', [element.scrollWidth, element.scrollHeight]);
     pdf.addImage(dataUrl, 'PNG', 0, 0, element.scrollWidth, element.scrollHeight);
-    pdf.save(`${currentClassName}-Seating-Chart.pdf`);
+    pdf.save(`${currentClassName}-Seating-LallRavi.pdf`);
   };
 
   return (
@@ -128,7 +155,7 @@ export default function App() {
         <div className="flex gap-3">
             <button onClick={exportPDF} className="bg-emerald-600 text-white px-5 py-2 rounded-xl font-bold flex items-center gap-2 shadow-md hover:bg-emerald-700 transition-colors"><FileDown size={20}/> Save PDF</button>
             <button onClick={() => { if(currentData.students.length){ setIsRandomizing(true); let c=0; const i=setInterval(()=>{setPickedStudent(currentData.students[Math.floor(Math.random()*currentData.students.length)]);c++;if(c>20)clearInterval(i)},80);}}} className="bg-indigo-600 text-white px-5 py-2 rounded-xl font-bold flex items-center gap-2 shadow-md hover:bg-indigo-700 transition-colors"><Target size={20}/> Randomizer</button>
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="bg-slate-900 text-white px-5 py-2 rounded-xl font-bold shadow-md transition-colors">{isSidebarOpen ? "Close Menu" : "Open Menu"}</button>
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="bg-slate-900 text-white px-5 py-2 rounded-xl font-bold shadow-md">{isSidebarOpen ? "Close Menu" : "Open Menu"}</button>
         </div>
       </header>
 
@@ -148,7 +175,7 @@ export default function App() {
                 <button onClick={addClass} className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700"><Plus/></button>
               </div>
             </div>
-            <textarea value={bulkNames} onChange={(e) => setBulkNames(e.target.value)} placeholder="Paste student names here..." className="w-full h-48 p-4 bg-slate-50 border-2 rounded-2xl font-medium outline-none focus:border-indigo-500" />
+            <textarea value={bulkNames} onChange={(e) => setBulkNames(e.target.value)} placeholder="Paste student names..." className="w-full h-48 p-4 bg-slate-50 border-2 rounded-2xl font-medium outline-none focus:border-indigo-500" />
             <button onClick={processRoster} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-wider shadow-lg hover:bg-indigo-700 transition-all active:scale-95">Generate Students</button>
           </div>
         </aside>
@@ -173,7 +200,7 @@ export default function App() {
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/95 backdrop-blur-xl animate-in fade-in duration-300">
                 <div className="bg-white p-20 rounded-[4rem] text-center border-[20px] border-indigo-600 shadow-2xl scale-in-center">
                     <h2 className="text-9xl font-black text-slate-900 uppercase mb-8 tracking-tighter">{pickedStudent?.name}</h2>
-                    <button onClick={() => setIsRandomizing(false)} className="px-16 py-5 bg-slate-900 text-white rounded-full font-black text-2xl uppercase tracking-widest shadow-xl hover:scale-105 transition-transform">CLOSE</button>
+                    <button onClick={() => setIsRandomizing(false)} className="px-16 py-5 bg-slate-900 text-white rounded-full font-black text-2xl uppercase tracking-widest shadow-xl">CLOSE</button>
                 </div>
             </div>
           )}
