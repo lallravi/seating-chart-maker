@@ -1,53 +1,69 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, RotateCw, Compass, Users, GraduationCap, Target, FileDown } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Trash2, RotateCw, Compass, Users, GraduationCap, Target, FileDown, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
+import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
 
-const Desk = ({ student, isTeacher, updatePosition, rotate, remove }) => {
-  const [isDragging, setIsDragging] = useState(false);
+// Zoom Controls Component
+const ZoomTools = () => {
+  const { zoomIn, zoomOut, resetTransform } = useControls();
+  return (
+    <div className="absolute bottom-6 right-6 flex flex-col gap-3 z-[100] no-print">
+      <button onClick={() => zoomIn()} className="p-4 bg-white shadow-xl rounded-xl border-2 border-slate-200 hover:bg-slate-50"><ZoomIn size={24}/></button>
+      <button onClick={() => zoomOut()} className="p-4 bg-white shadow-xl rounded-xl border-2 border-slate-200 hover:bg-slate-50"><ZoomOut size={24}/></button>
+      <button onClick={() => resetTransform()} className="p-4 bg-indigo-600 text-white shadow-xl rounded-xl hover:bg-indigo-700"><Maximize size={24}/></button>
+    </div>
+  );
+};
+
+const Desk = ({ student, isTeacher, updatePosition, rotate, remove, scale }) => {
   const [pos, setPos] = useState({ x: student.x, y: student.y });
+  const isDragging = useRef(false);
+
+  useEffect(() => { setPos({ x: student.x, y: student.y }); }, [student.x, student.y]);
 
   const onMouseDown = (e) => {
-    setIsDragging(true);
-    const startX = e.clientX - pos.x;
-    const startY = e.clientY - pos.y;
+    isDragging.current = true;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const initialX = pos.x;
+    const initialY = pos.y;
 
     const onMouseMove = (moveEvent) => {
-      const newX = moveEvent.clientX - startX;
-      const newY = moveEvent.clientY - startY;
-      setPos({ x: newX, y: newY });
+      if (!isDragging.current) return;
+      // Adjust movement based on current zoom scale
+      const dx = (moveEvent.clientX - startX) * (1 / scale);
+      const dy = (moveEvent.clientY - startY) * (1 / scale);
+      setPos({ x: initialX + dx, y: initialY + dy });
     };
 
-    const onMouseUp = (moveEvent) => {
-      setIsDragging(false);
+    const onMouseUp = () => {
+      isDragging.current = false;
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
-      updatePosition(student.id, moveEvent.clientX - startX, moveEvent.clientY - startY, isTeacher);
+      updatePosition(student.id, pos.x, pos.y, isTeacher);
     };
-
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   };
 
   return (
     <div 
-      onMouseDown={onMouseDown}
+      onMouseDown={onMouseDown} 
       style={{ 
-        left: `${pos.x}px`, 
-        top: `${pos.y}px`, 
-        transform: `rotate(${student.rotation || 0}deg)`,
-        position: 'absolute',
-        zIndex: isDragging ? 100 : (isTeacher ? 50 : 20)
-      }}
-      className="cursor-grab active:cursor-grabbing select-none"
+        transform: `translate(${pos.x}px, ${pos.y}px) rotate(${student.rotation || 0}deg)`, 
+        position: 'absolute', 
+        zIndex: isTeacher ? 50 : 20 
+      }} 
+      className="cursor-grab active:cursor-grabbing"
     >
-      <div className={`w-80 h-44 rounded-3xl shadow-xl flex items-center justify-center relative border-8 ${isTeacher ? 'bg-indigo-50 border-indigo-600' : 'bg-white border-slate-900'}`}>
-        <span className={`text-3xl font-black uppercase text-center px-4 ${isTeacher ? 'text-indigo-900' : 'text-slate-900'}`}>
+      <div className={`w-[400px] h-[220px] rounded-[2rem] shadow-2xl flex items-center justify-center relative border-[10px] ${isTeacher ? 'bg-indigo-50 border-indigo-600' : 'bg-white border-slate-900'}`}>
+        <span className={`text-5xl font-black uppercase text-center px-6 leading-tight ${isTeacher ? 'text-indigo-900' : 'text-slate-900'}`}>
           {student.name}
         </span>
-        <div className="absolute -top-6 -right-6 flex gap-2 no-print">
-            <button onMouseDown={(e) => e.stopPropagation()} onClick={() => rotate(student.id, isTeacher)} className="p-2 bg-indigo-600 text-white rounded-full shadow-lg hover:scale-110 transition-transform"><RotateCw size={20}/></button>
-            {!isTeacher && <button onMouseDown={(e) => e.stopPropagation()} onClick={() => remove(student.id)} className="p-2 bg-red-600 text-white rounded-full shadow-lg hover:scale-110 transition-transform"><Trash2 size={20}/></button>}
+        <div className="absolute -top-10 -right-10 flex gap-3 no-print">
+            <button onMouseDown={(e) => e.stopPropagation()} onClick={() => rotate(student.id, isTeacher)} className="p-4 bg-indigo-600 text-white rounded-full shadow-lg"><RotateCw size={30}/></button>
+            {!isTeacher && <button onMouseDown={(e) => e.stopPropagation()} onClick={() => remove(student.id)} className="p-4 bg-red-600 text-white rounded-full shadow-lg"><Trash2 size={30}/></button>}
         </div>
       </div>
     </div>
@@ -56,8 +72,8 @@ const Desk = ({ student, isTeacher, updatePosition, rotate, remove }) => {
 
 export default function App() {
   const [classes, setClasses] = useState(() => {
-    const saved = localStorage.getItem('compass-fixed-v2');
-    return saved ? JSON.parse(saved) : { "PERIOD 1": { students: [], teacherDesk: { id: 'teacher-1', name: 'TEACHER', x: 500, y: 50, rotation: 0 } } };
+    const saved = localStorage.getItem('compass-movable-v1');
+    return saved ? JSON.parse(saved) : { "PERIOD 1": { students: [], teacherDesk: { id: 't1', name: 'TEACHER', x: 1800, y: 200, rotation: 0 } } };
   });
   
   const [currentClassName, setCurrentClassName] = useState(Object.keys(classes)[0]);
@@ -65,11 +81,11 @@ export default function App() {
   const [isRandomizing, setIsRandomizing] = useState(false);
   const [pickedStudent, setPickedStudent] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [currentScale, setCurrentScale] = useState(1);
+  const floorRef = useRef(null);
 
-  useEffect(() => { localStorage.setItem('compass-fixed-v2', JSON.stringify(classes)); }, [classes]);
-
+  useEffect(() => { localStorage.setItem('compass-movable-v1', JSON.stringify(classes)); }, [classes]);
   const currentData = classes[currentClassName] || { students: [], teacherDesk: null };
-  const students = currentData.students;
 
   const updatePosition = (id, x, y, isTeacher) => {
     setClasses(prev => ({
@@ -82,24 +98,13 @@ export default function App() {
     }));
   };
 
-  const rotate = (id, isTeacher) => {
-    setClasses(prev => ({
-      ...prev,
-      [currentClassName]: {
-        ...prev[currentClassName],
-        students: isTeacher ? prev[currentClassName].students : prev[currentClassName].students.map(s => s.id === id ? { ...s, rotation: (s.rotation || 0) + 90 } : s),
-        teacherDesk: isTeacher ? { ...prev[currentClassName].teacherDesk, rotation: (prev[currentClassName].teacherDesk.rotation || 0) + 90 } : prev[currentClassName].teacherDesk
-      }
-    }));
-  };
-
   const processRoster = () => {
     const names = bulkNames.split(/[\n,]+/).map(n => n.trim()).filter(n => n !== "");
     const newEntries = names.map((n, i) => ({
       id: Date.now() + i,
       name: n.toUpperCase(),
-      x: 100 + (i % 4 * 350),
-      y: 300 + (Math.floor(i / 4) * 200),
+      x: 500 + (i % 5 * 600),
+      y: 600 + (Math.floor(i / 5) * 400),
       rotation: 0
     }));
     setClasses(prev => ({ ...prev, [currentClassName]: { ...prev[currentClassName], students: [...prev[currentClassName].students, ...newEntries] } }));
@@ -107,72 +112,71 @@ export default function App() {
   };
 
   const exportPDF = async () => {
-    const element = document.getElementById('classroom-canvas');
-    const buttons = document.querySelectorAll('.no-print');
-    buttons.forEach(b => b.style.display = 'none');
-    
+    const element = floorRef.current;
     const dataUrl = await toPng(element, { backgroundColor: '#ffffff' });
-    
-    buttons.forEach(b => b.style.display = 'flex');
-
     const pdf = new jsPDF('l', 'px', [element.scrollWidth, element.scrollHeight]);
     pdf.addImage(dataUrl, 'PNG', 0, 0, element.scrollWidth, element.scrollHeight);
-    pdf.save(`${currentClassName}-Seating-Chart.pdf`);
+    pdf.save(`Seating-Chart-${currentClassName}.pdf`);
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-50 flex flex-col font-sans overflow-hidden">
-      <header className="h-20 bg-white border-b-4 border-slate-200 px-8 flex justify-between items-center z-50">
+    <div className="fixed inset-0 bg-slate-100 flex flex-col font-sans overflow-hidden">
+      <header className="h-20 bg-white border-b-4 border-slate-200 px-8 flex justify-between items-center z-50 shrink-0">
         <div className="flex items-center gap-4">
           <Compass className="text-indigo-600" size={32} />
-          <h1 className="text-2xl font-black uppercase text-slate-900 tracking-tight">{currentClassName}</h1>
+          <h1 className="text-2xl font-black uppercase text-slate-900">{currentClassName}</h1>
         </div>
         <div className="flex gap-3">
-            <button onClick={exportPDF} className="bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition-colors shadow-md">
-                <FileDown size={20}/> Save PDF
-            </button>
-            <button onClick={() => { if(students.length){ setIsRandomizing(true); let c=0; const i=setInterval(()=>{setPickedStudent(students[Math.floor(Math.random()*students.length)]);c++;if(c>25)clearInterval(i)},80);}}} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-colors shadow-md">
-                <Target size={20}/> Randomizer
-            </button>
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="bg-slate-900 text-white px-6 py-2 rounded-xl font-bold shadow-md">
-                {isSidebarOpen ? "Close Menu" : "Open Menu"}
-            </button>
+            <button onClick={exportPDF} className="bg-emerald-600 text-white px-5 py-2 rounded-xl font-bold flex items-center gap-2"><FileDown size={20}/> Save PDF</button>
+            <button onClick={() => { if(currentData.students.length){ setIsRandomizing(true); let c=0; const i=setInterval(()=>{setPickedStudent(currentData.students[Math.floor(Math.random()*currentData.students.length)]);c++;if(c>20)clearInterval(i)},80);}}} className="bg-indigo-600 text-white px-5 py-2 rounded-xl font-bold flex items-center gap-2"><Target size={20}/> Randomizer</button>
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="bg-slate-900 text-white px-5 py-2 rounded-xl font-bold">{isSidebarOpen ? "Close Menu" : "Open Menu"}</button>
         </div>
       </header>
 
       <div className="flex flex-1 relative overflow-hidden">
-        <aside className={`${isSidebarOpen ? 'w-80' : 'w-0'} bg-white border-r-4 border-slate-100 transition-all duration-300 overflow-hidden flex flex-col p-6 shadow-xl z-40`}>
-          <div className="space-y-6 min-w-[280px]">
-            <select value={currentClassName} onChange={(e) => setCurrentClassName(e.target.value)} className="w-full p-3 bg-slate-100 rounded-xl font-bold border-2 border-transparent focus:border-indigo-500 outline-none">
+        <aside className={`${isSidebarOpen ? 'w-80' : 'w-0'} bg-white border-r-4 border-slate-100 transition-all duration-300 overflow-hidden z-40`}>
+          <div className="p-6 w-80 space-y-6">
+            <select value={currentClassName} onChange={(e) => setCurrentClassName(e.target.value)} className="w-full p-3 bg-slate-100 rounded-xl font-bold outline-none">
                 {Object.keys(classes).map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-            <textarea value={bulkNames} onChange={(e) => setBulkNames(e.target.value)} placeholder="Enter student names..." className="w-full h-64 p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl font-medium outline-none" />
-            <button onClick={processRoster} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-wider shadow-lg hover:bg-indigo-700 transition-all">Generate Grid</button>
+            <textarea value={bulkNames} onChange={(e) => setBulkNames(e.target.value)} placeholder="Student Names..." className="w-full h-64 p-4 bg-slate-50 border-2 rounded-2xl outline-none" />
+            <button onClick={processRoster} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase">Generate Grid</button>
           </div>
         </aside>
 
-        <main id="classroom-canvas" className="flex-1 relative bg-white overflow-auto p-10">
-            <div className="w-full max-w-2xl mx-auto h-10 bg-slate-900 rounded-b-2xl mb-16 flex items-center justify-center shadow-lg">
-                <span className="text-white text-[10px] font-bold tracking-[1em] uppercase opacity-40">Front / Whiteboard</span>
-            </div>
-
-            <div className="relative w-[2400px] h-[1600px]">
-                {currentData.teacherDesk && (
-                    <Desk key={currentData.teacherDesk.id} student={currentData.teacherDesk} isTeacher={true} updatePosition={updatePosition} rotate={rotate} />
-                )}
-                {students.map((s) => (
-                    <Desk key={s.id} student={s} isTeacher={false} updatePosition={updatePosition} rotate={rotate} remove={(id) => setClasses(p=>({...p, [currentClassName]: {...p[currentClassName], students: p[currentClassName].students.filter(x=>x.id!==id)}}))} />
-                ))}
-            </div>
-
-            {isRandomizing && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 backdrop-blur-sm">
-                    <div className="bg-white p-16 rounded-[3rem] text-center border-[16px] border-indigo-600 shadow-2xl">
-                        <h2 className="text-7xl font-black text-slate-900 uppercase mb-8">{pickedStudent?.name}</h2>
-                        <button onClick={() => setIsRandomizing(false)} className="px-10 py-3 bg-slate-900 text-white rounded-full font-black text-lg uppercase">CLOSE</button>
-                    </div>
+        <main className="flex-1 relative bg-slate-200 overflow-hidden">
+          <TransformWrapper 
+            initialScale={0.4} 
+            minScale={0.1} 
+            centerOnInit={true}
+            limitToBounds={false}
+            panning={{ excluded: ["cursor-grab"] }}
+            onZoom={(ref) => setCurrentScale(ref.state.scale)}
+          >
+            <ZoomTools />
+            <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
+              <div ref={floorRef} className="relative bg-white shadow-inner" style={{ width: '5000px', height: '4000px' }}>
+                {/* Whiteboard Area */}
+                <div className="absolute top-0 w-full h-24 bg-slate-900 flex items-center justify-center">
+                    <span className="text-white font-black tracking-[2em] uppercase opacity-30">Whiteboard</span>
                 </div>
-            )}
+                {/* Student and Teacher Desks */}
+                {currentData.teacherDesk && <Desk student={currentData.teacherDesk} isTeacher={true} scale={currentScale} updatePosition={updatePosition} rotate={(id) => setClasses(p=>({...p, [currentClassName]: {...p[currentClassName], teacherDesk: {...p[currentClassName].teacherDesk, rotation: (p[currentClassName].teacherDesk.rotation || 0)+90}}}))} />}
+                {currentData.students.map((s) => (
+                    <Desk key={s.id} student={s} isTeacher={false} scale={currentScale} updatePosition={updatePosition} rotate={(id) => setClasses(p=>({...p, [currentClassName]: {...p[currentClassName], students: p[currentClassName].students.map(x=>x.id===id?{...x, rotation:(x.rotation||0)+90}:x)}}))} remove={(id) => setClasses(p=>({...p, [currentClassName]: {...p[currentClassName], students: p[currentClassName].students.filter(x=>x.id!==id)}}))} />
+                ))}
+              </div>
+            </TransformComponent>
+          </TransformWrapper>
+
+          {isRandomizing && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 backdrop-blur-md">
+                <div className="bg-white p-20 rounded-[4rem] text-center border-[20px] border-indigo-600 shadow-2xl">
+                    <h2 className="text-8xl font-black text-slate-900 uppercase mb-8">{pickedStudent?.name}</h2>
+                    <button onClick={() => setIsRandomizing(false)} className="px-12 py-4 bg-slate-900 text-white rounded-full font-black text-xl uppercase">CLOSE</button>
+                </div>
+            </div>
+          )}
         </main>
       </div>
     </div>
