@@ -30,6 +30,9 @@ export default function App() {
   const [pickedStudent, setPickedStudent] = useState(null);
   const floorRef = useRef(null);
 
+  // DRAG FIX: This state tracks the zoom so the drag speed stays 1:1
+  const [currentScale, setCurrentScale] = useState(0.15);
+
   useEffect(() => {
     localStorage.setItem('compass-final-white-v1', JSON.stringify(classes));
   }, [classes]);
@@ -37,17 +40,21 @@ export default function App() {
   const students = classes[currentClassName] || [];
   const updateStudents = (newList) => setClasses(prev => ({ ...prev, [currentClassName]: newList }));
 
-  // Instant Dragging Fix: No lag because we only update state when finished
   const handleDragEnd = (id, info) => {
+    // We multiply the offset by (1 / currentScale) to cancel the "heaviness"
+    const factor = 1 / currentScale;
     const updated = students.map(s => 
-      s.id === id ? { ...s, x: s.x + info.offset.x, y: s.y + info.offset.y } : s
+      s.id === id ? { 
+        ...s, 
+        x: s.x + (info.offset.x * factor), 
+        y: s.y + (info.offset.y * factor) 
+      } : s
     );
     updateStudents(updated);
   };
 
   const processRoster = () => {
     const names = bulkNames.split(/[\n,]+/).map(n => n.trim()).filter(n => n !== "");
-    // MASSIVE SPREAD: Distributes students across a huge 5000px area
     const columns = 5;
     const xGap = 800; 
     const yGap = 500; 
@@ -153,11 +160,12 @@ export default function App() {
                 initialScale={0.15} 
                 limitToBounds={false}
                 panning={{ excluded: ["desk-drag"] }}
+                // UPDATE SCALE TRACKER WHEN ZOOMING
+                onZoom={(ref) => setCurrentScale(ref.state.scale)}
               >
                 <Controls />
                 <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
                   <div ref={floorRef} className="relative bg-white shadow-2xl" style={{ width: '10000px', height: '8000px' }}>
-                    {/* GIANT WHITEBOARD LABEL */}
                     <div className="absolute top-0 w-full h-64 bg-slate-900 flex items-center justify-center z-10">
                        <h2 className="text-white text-9xl font-black uppercase tracking-[5rem] translate-x-[2.5rem]">Whiteboard</h2>
                     </div>
@@ -172,16 +180,13 @@ export default function App() {
                           animate={{ x: student.x, y: student.y, rotate: student.rotation }}
                           className="absolute desk-drag cursor-grab active:cursor-grabbing z-20"
                         >
-                          {/* MASSIVE DESK VISUAL */}
                           <div className="w-[600px] h-[400px] bg-white border-[12px] border-indigo-600 rounded-[5rem] shadow-[0_50px_100px_rgba(0,0,0,0.15)] flex flex-col items-center justify-center p-12 group hover:scale-105 transition-all relative">
                             <span className="text-7xl font-black uppercase text-center select-none text-slate-900 leading-none tracking-tighter">
                               {student.name}
                             </span>
-                            {/* Rotate Button */}
                             <button onClick={(e) => { e.stopPropagation(); updateStudents(students.map(s => s.id === student.id ? {...s, rotation: (s.rotation||0)+90} : s)) }} className="absolute -top-10 -right-10 p-8 bg-indigo-600 text-white rounded-full shadow-2xl hover:bg-slate-900 transition-colors">
                               <RotateCw size={48}/>
                             </button>
-                            {/* Visual Chair */}
                             <div className="absolute -bottom-16 w-48 h-20 bg-slate-200 rounded-t-[3rem] -z-10 border-x-[12px] border-t-[12px] border-slate-300"></div>
                           </div>
                         </motion.div>
