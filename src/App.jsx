@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, RotateCw, Compass, ZoomIn, ZoomOut, Maximize, Target } from 'lucide-react';
+import { Plus, Trash2, RotateCw, Compass, ZoomIn, ZoomOut, Maximize, Target, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
 
@@ -70,7 +70,7 @@ const Desk = ({ student, updatePosition, rotate, remove, scale }) => {
 
 export default function App() {
   const [classes, setClasses] = useState(() => {
-    const saved = localStorage.getItem('compass-v45-final');
+    const saved = localStorage.getItem('compass-v50-fullcanvas');
     return saved ? JSON.parse(saved) : { "PERIOD 1": [] };
   });
   
@@ -80,10 +80,11 @@ export default function App() {
   const [isRandomizing, setIsRandomizing] = useState(false);
   const [pickedStudent, setPickedStudent] = useState(null);
   const [currentScale, setCurrentScale] = useState(0.1);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const floorRef = useRef(null);
 
   useEffect(() => {
-    localStorage.setItem('compass-v45-final', JSON.stringify(classes));
+    localStorage.setItem('compass-v50-fullcanvas', JSON.stringify(classes));
   }, [classes]);
 
   const students = classes[currentClassName] || [];
@@ -131,28 +132,40 @@ export default function App() {
     <div className="fixed inset-0 bg-white flex flex-col font-sans overflow-hidden">
       <header className="h-32 bg-white border-b-8 border-slate-100 px-12 flex justify-between items-center z-[70] shrink-0">
         <div className="flex items-center gap-6">
+          <button 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="p-4 bg-slate-100 rounded-2xl hover:bg-indigo-100 transition-colors text-slate-600 hover:text-indigo-600"
+          >
+            {isSidebarOpen ? <ChevronLeft size={48} /> : <ChevronRight size={48} />}
+          </button>
           <Compass className="text-indigo-600" size={56} />
           <h1 className="text-5xl font-black uppercase text-slate-900">{currentClassName}</h1>
         </div>
         <div className="flex gap-4">
-            <button onClick={() => { if(students.length){ setIsRandomizing(true); let c=0; const i=setInterval(()=>{setPickedStudent(students[Math.floor(Math.random()*students.length)]);c++;if(c>30)clearInterval(i)},80);}}} className="bg-indigo-600 text-white px-10 py-6 rounded-3xl font-black text-xl uppercase tracking-widest shadow-xl">Randomizer</button>
-            <button onClick={() => toPng(floorRef.current).then(d => { const a = document.createElement('a'); a.download = 'map.png'; a.href = d; a.click(); })} className="bg-slate-900 text-white px-10 py-6 rounded-3xl font-black text-xl uppercase tracking-widest shadow-xl">Export</button>
+            <button onClick={() => { if(students.length){ setIsRandomizing(true); let c=0; const i=setInterval(()=>{setPickedStudent(students[Math.floor(Math.random()*students.length)]);c++;if(c>30)clearInterval(i)},80);}}} className="bg-indigo-600 text-white px-10 py-6 rounded-3xl font-black text-xl uppercase tracking-widest shadow-xl active:scale-95 transition-all">Randomizer</button>
+            <button onClick={() => toPng(floorRef.current).then(d => { const a = document.createElement('a'); a.download = 'map.png'; a.href = d; a.click(); })} className="bg-slate-900 text-white px-10 py-6 rounded-3xl font-black text-xl uppercase tracking-widest shadow-xl active:scale-95 transition-all">Export</button>
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <aside className="w-[500px] bg-white border-r-8 border-slate-50 p-10 flex flex-col z-[60] shrink-0 shadow-2xl">
-          <div className="mb-8">
-            <input value={newClassName} onChange={(e) => setNewClassName(e.target.value)} placeholder="NEW CLASS..." className="w-full p-5 rounded-2xl bg-slate-50 border-4 border-slate-100 font-black text-xl mb-4 outline-none" />
-            <button onClick={() => { if(newClassName) { setClasses(p => ({...p, [newClassName.toUpperCase()]: []})); setCurrentClassName(newClassName.toUpperCase()); setNewClassName(""); }}} className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black uppercase shadow-lg">Add Period</button>
-            <select value={currentClassName} onChange={(e) => setCurrentClassName(e.target.value)} className="w-full mt-4 p-5 bg-slate-900 text-white rounded-2xl font-black text-xl outline-none">
-              {Object.keys(classes).map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* SIDEBAR - Now with toggle logic */}
+        <aside 
+          className={`bg-white border-r-8 border-slate-50 p-10 flex flex-col z-[60] shrink-0 shadow-2xl transition-all duration-500 ease-in-out ${isSidebarOpen ? 'w-[500px] translate-x-0' : 'w-0 -translate-x-full p-0 border-none'}`}
+        >
+          <div className={`${!isSidebarOpen && 'hidden'}`}>
+            <div className="mb-8">
+              <input value={newClassName} onChange={(e) => setNewClassName(e.target.value)} placeholder="NEW CLASS..." className="w-full p-5 rounded-2xl bg-slate-50 border-4 border-slate-100 font-black text-xl mb-4 outline-none" />
+              <button onClick={() => { if(newClassName) { setClasses(p => ({...p, [newClassName.toUpperCase()]: []})); setCurrentClassName(newClassName.toUpperCase()); setNewClassName(""); }}} className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black uppercase shadow-lg">Add Period</button>
+              <select value={currentClassName} onChange={(e) => setCurrentClassName(e.target.value)} className="w-full mt-4 p-5 bg-slate-900 text-white rounded-2xl font-black text-xl outline-none cursor-pointer">
+                {Object.keys(classes).map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <textarea value={bulkNames} onChange={(e) => setBulkNames(e.target.value)} placeholder="PASTE NAMES..." className="w-full h-[450px] p-8 bg-slate-50 border-4 border-slate-100 rounded-[3rem] font-bold text-2xl outline-none mb-6" />
+            <button onClick={processRoster} className="w-full py-8 bg-indigo-600 text-white rounded-[2rem] font-black text-xl uppercase tracking-widest shadow-2xl">Generate Map</button>
           </div>
-          <textarea value={bulkNames} onChange={(e) => setBulkNames(e.target.value)} placeholder="PASTE NAMES..." className="w-full flex-1 p-8 bg-slate-50 border-4 border-slate-100 rounded-[3rem] font-bold text-2xl outline-none mb-6" />
-          <button onClick={processRoster} className="w-full py-8 bg-indigo-600 text-white rounded-[2rem] font-black text-xl uppercase tracking-widest shadow-2xl">Generate Map</button>
         </aside>
 
+        {/* MAIN CANVAS - Expands automatically */}
         <main className="flex-1 relative bg-slate-100 overflow-hidden">
           {isRandomizing && (
             <div className="absolute inset-0 z-[200] flex items-center justify-center bg-slate-900/90 backdrop-blur-md">
@@ -163,7 +176,14 @@ export default function App() {
             </div>
           )}
 
-          <TransformWrapper centerOnInit={true} minScale={0.001} initialScale={0.08} limitToBounds={false} panning={{ excluded: ["cursor-grab"] }} onZoom={(ref) => setCurrentScale(ref.state.scale)}>
+          <TransformWrapper 
+            centerOnInit={true} 
+            minScale={0.001} 
+            initialScale={0.08} 
+            limitToBounds={false} 
+            panning={{ excluded: ["cursor-grab"] }} 
+            onZoom={(ref) => setCurrentScale(ref.state.scale)}
+          >
             <Controls />
             <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
               <div ref={floorRef} className="relative bg-white" style={{ width: '50000px', height: '40000px' }}>
